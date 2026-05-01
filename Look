@@ -1,1 +1,446 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LOOK 2026 — работающая копия YouTube</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0F0F0F; color: #F1F1F1; font-family: system-ui, -apple-system, sans-serif; }
+        .header { position: fixed; top: 0; left: 0; right: 0; height: 56px; background: #0F0F0F; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 1000; border-bottom: 1px solid #3F3F3F; }
+        .logo { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 20px; font-weight: bold; }
+        .logo i { color: #FF0000; font-size: 28px; }
+        .search-bar { flex: 1; max-width: 600px; display: flex; margin: 0 20px; }
+        .search-bar input { flex: 1; padding: 10px 16px; background: #1F1F1F; border: 1px solid #3F3F3F; border-radius: 40px 0 0 40px; color: white; outline: none; }
+        .search-bar button { padding: 10px 20px; background: #3F3F3F; border: none; border-radius: 0 40px 40px 0; color: white; cursor: pointer; }
+        .avatar { width: 32px; height: 32px; border-radius: 50%; background: #FF0000; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+        .main-content { margin-top: 56px; padding: 24px; max-width: 1400px; margin-left: auto; margin-right: auto; }
+        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; }
+        .video-card { cursor: pointer; transition: 0.2s; background: #1F1F1F; border-radius: 12px; overflow: hidden; }
+        .video-card:hover { transform: translateY(-4px); }
+        .thumbnail { aspect-ratio: 16/9; background: #2F2F2F; overflow: hidden; }
+        .thumbnail img { width: 100%; height: 100%; object-fit: cover; }
+        .video-info { padding: 12px; }
+        .video-title { font-weight: 500; margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .channel-name { font-size: 12px; color: #AAAAAA; }
+        .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 2000; }
+        .modal-content { background: #1F1F1F; padding: 32px; border-radius: 16px; width: 400px; max-width: 90%; }
+        .modal-content input, .modal-content textarea { width: 100%; padding: 12px; margin: 8px 0; background: #2F2F2F; border: none; border-radius: 8px; color: white; }
+        .modal-content button { width: 100%; padding: 12px; background: #FF0000; border: none; border-radius: 40px; color: white; font-weight: bold; cursor: pointer; margin-top: 8px; }
+        .page { display: none; }
+        .page.active { display: block; }
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #2F2F2F; padding: 12px 24px; border-radius: 40px; z-index: 3000; animation: fadeOut 2s forwards; }
+        @keyframes fadeOut { 0% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+        button { cursor: pointer; border: none; background: none; color: white; }
+        .player-container video { width: 100%; max-height: 70vh; border-radius: 12px; background: #000; }
+        .video-actions { display: flex; gap: 16px; margin: 12px 0; }
+        .video-actions button { background: #2F2F2F; padding: 8px 16px; border-radius: 40px; }
+        .subscribe-btn { background: #FF0000 !important; }
+        .upload-area { background: #1F1F1F; padding: 24px; border-radius: 16px; max-width: 600px; margin: 0 auto; }
+        .user-badge { display: flex; align-items: center; gap: 8px; }
+        @media (max-width: 768px) { .video-grid { gap: 16px; } .search-bar { margin: 0 8px; } }
+    </style>
+</head>
+<body>
 
+<header class="header">
+    <div class="logo" onclick="navigate('home')"><i class="fab fa-youtube"></i><span>LOOK 2026</span></div>
+    <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="Поиск...">
+        <button onclick="searchVideos()"><i class="fas fa-search"></i></button>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: center;">
+        <button id="uploadBtn" onclick="navigate('upload')" style="display: none;"><i class="fas fa-video"></i></button>
+        <button id="authBtn" onclick="showAuthModal()"><i class="fas fa-user"></i> Войти</button>
+        <div id="avatarBtn" class="avatar" style="display: none;" onclick="showUserMenu()"></div>
+    </div>
+</header>
+
+<div class="main-content">
+    <div id="homePage" class="page active">
+        <div class="video-grid" id="videoGrid"></div>
+    </div>
+
+    <div id="playerPage" class="page">
+        <div id="playerContainer"></div>
+    </div>
+
+    <div id="studioPage" class="page">
+        <h2>Мои видео</h2>
+        <div id="myVideosList"></div>
+    </div>
+
+    <div id="uploadPage" class="page">
+        <div class="upload-area">
+            <h2><i class="fas fa-upload"></i> Загрузить видео</h2>
+            <input type="text" id="uploadTitle" placeholder="Название видео" style="width:100%; padding:12px; margin:8px 0; background:#2F2F2F; border:none; border-radius:8px; color:white;">
+            <textarea id="uploadDesc" placeholder="Описание" rows="3" style="width:100%; padding:12px; margin:8px 0; background:#2F2F2F; border:none; border-radius:8px; color:white;"></textarea>
+            <select id="uploadCategory" style="width:100%; padding:12px; margin:8px 0; background:#2F2F2F; border:none; border-radius:8px; color:white;">
+                <option>Обучение</option><option>Игры</option><option>Музыка</option><option>Юмор</option><option>Новости</option>
+            </select>
+            <input type="file" id="videoFileInput" accept="video/*" style="margin:8px 0;">
+            <input type="file" id="thumbFileInput" accept="image/*" style="margin:8px 0;">
+            <div id="uploadProgress" style="display:none; height:4px; background:#3F3F3F; border-radius:4px; margin:8px 0;"><div id="progressFill" style="width:0%; height:100%; background:#FF0000; border-radius:4px;"></div></div>
+            <button onclick="uploadVideo()" style="width:100%; padding:12px; background:#FF0000; border:none; border-radius:40px; color:white; font-weight:bold; margin-top:16px;">Опубликовать</button>
+        </div>
+    </div>
+
+    <div id="subscriptionsPage" class="page"><div class="video-grid" id="subsGrid"></div></div>
+    <div id="historyPage" class="page"><div class="video-grid" id="historyGrid"></div></div>
+    <div id="likedPage" class="page"><div class="video-grid" id="likedGrid"></div></div>
+</div>
+
+<script>
+    // ========== ДАННЫЕ ==========
+    let currentUser = null;
+    let videos = [];
+    let categories = ['Все', 'Обучение', 'Игры', 'Музыка', 'Юмор', 'Новости'];
+    let currentCategory = 'Все';
+    
+    // Загрузка данных из localStorage
+    function loadData() {
+        const savedVideos = localStorage.getItem('look2026_videos');
+        if (savedVideos) videos = JSON.parse(savedVideos);
+        else {
+            videos = [{
+                id: 'demo1',
+                title: 'Добро пожаловать на LOOK 2026!',
+                description: 'Это полная копия YouTube. Вы можете регистрироваться, загружать видео, ставить лайки и подписываться!',
+                videoUrl: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+                thumbnailUrl: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
+                authorId: 'system',
+                authorName: 'LOOK Team',
+                authorAvatar: 'L',
+                views: 1520,
+                likes: 89,
+                dislikes: 3,
+                category: 'Обучение',
+                duration: '01:45',
+                createdAt: Date.now()
+            }];
+            saveData();
+        }
+        
+        const userData = localStorage.getItem('look2026_user');
+        if (userData) currentUser = JSON.parse(userData);
+        updateUI();
+    }
+    
+    function saveData() { localStorage.setItem('look2026_videos', JSON.stringify(videos)); }
+    function saveUser() { localStorage.setItem('look2026_user', JSON.stringify(currentUser)); }
+    
+    function updateUI() {
+        if (currentUser) {
+            document.getElementById('authBtn').style.display = 'none';
+            document.getElementById('avatarBtn').style.display = 'flex';
+            document.getElementById('uploadBtn').style.display = 'block';
+            document.getElementById('avatarBtn').innerHTML = currentUser.channelName ? currentUser.channelName[0].toUpperCase() : 'U';
+        } else {
+            document.getElementById('authBtn').style.display = 'block';
+            document.getElementById('avatarBtn').style.display = 'none';
+            document.getElementById('uploadBtn').style.display = 'none';
+        }
+        renderHome();
+    }
+    
+    function showToast(msg) {
+        let t = document.createElement('div');
+        t.className = 'toast';
+        t.innerText = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 2000);
+    }
+    
+    function formatViews(n) { return n > 1000000 ? (n/1000000).toFixed(1)+'M' : n > 1000 ? (n/1000).toFixed(1)+'K' : n; }
+    function escapeHtml(str) { return str?.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m]) || ''; }
+    
+    // ========== РЕНДЕР ГЛАВНОЙ ==========
+    function renderHome() {
+        const search = document.getElementById('searchInput')?.value.toLowerCase() || '';
+        let filtered = videos.filter(v => 
+            (currentCategory === 'Все' || v.category === currentCategory) &&
+            (v.title.toLowerCase().includes(search) || v.authorName?.toLowerCase().includes(search))
+        );
+        
+        document.getElementById('videoGrid').innerHTML = filtered.map(v => `
+            <div class="video-card" onclick="openPlayer('${v.id}')">
+                <div class="thumbnail">
+                    <img src="${v.thumbnailUrl || 'https://via.placeholder.com/320x180?text=NO+THUMB'}" onerror="this.src='https://via.placeholder.com/320x180?text=VIDEO'">
+                </div>
+                <div class="video-info">
+                    <div class="video-title">${escapeHtml(v.title)}</div>
+                    <div class="channel-name">${escapeHtml(v.authorName)} • ${formatViews(v.views)} просмотров</div>
+                </div>
+            </div>
+        `).join('');
+        
+        // Категории
+        const catsHtml = categories.map(c => `<span class="chip" style="background:${currentCategory===c?'#FF0000':'#2F2F2F'}; padding:6px 16px; border-radius:40px; cursor:pointer; font-size:14px; margin-right:8px;" onclick="setCategory('${c}')">${c}</span>`).join('');
+        document.getElementById('homePage').innerHTML = `<div style="margin-bottom:24px;">${catsHtml}</div><div class="video-grid" id="videoGridInner"></div>`;
+        document.getElementById('videoGridInner').innerHTML = document.getElementById('videoGrid').innerHTML;
+    }
+    
+    window.setCategory = (cat) => { currentCategory = cat; renderHome(); };
+    
+    // ========== ПЛЕЕР ==========
+    window.openPlayer = async function(id) {
+        const video = videos.find(v => v.id === id);
+        if (!video) return;
+        
+        // Добавляем в историю
+        let history = JSON.parse(localStorage.getItem('look2026_history') || '[]');
+        if (!history.includes(id)) history.unshift(id);
+        localStorage.setItem('look2026_history', JSON.stringify(history.slice(0, 50)));
+        
+        // Увеличиваем просмотры
+        video.views += 1;
+        saveData();
+        
+        document.getElementById('playerContainer').innerHTML = `
+            <div style="max-width:1000px; margin:0 auto;">
+                <div class="player-container">
+                    <video src="${video.videoUrl}" controls autoplay style="width:100%; border-radius:12px;"></video>
+                </div>
+                <h2 style="margin-top:16px;">${escapeHtml(video.title)}</h2>
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin:12px 0;">
+                    <div class="user-badge">
+                        <div class="avatar" style="width:40px; height:40px; font-size:18px;">${video.authorAvatar || video.authorName?.[0] || 'U'}</div>
+                        <div>
+                            <div><strong>${escapeHtml(video.authorName)}</strong></div>
+                            <div style="font-size:12px; color:#AAAAAA;">${video.authorSubs || 0} подписчиков</div>
+                        </div>
+                        ${currentUser && currentUser.channelName !== video.authorName ? `<button onclick="subscribeTo('${video.authorId}')" style="background:#FF0000; padding:8px 20px; border-radius:40px;">Подписаться</button>` : ''}
+                    </div>
+                    <div class="video-actions">
+                        <button onclick="likeVideo('${video.id}')"><i class="fas fa-thumbs-up"></i> ${video.likes || 0}</button>
+                        <button onclick="dislikeVideo('${video.id}')"><i class="fas fa-thumbs-down"></i> ${video.dislikes || 0}</button>
+                        <button onclick="shareVideo()"><i class="fas fa-share"></i> Поделиться</button>
+                    </div>
+                </div>
+                <div style="background:#1F1F1F; padding:16px; border-radius:12px;">
+                    <strong>Описание</strong><br>
+                    ${escapeHtml(video.description) || 'Нет описания'}
+                </div>
+            </div>
+        `;
+        navigate('player');
+    };
+    
+    window.likeVideo = (id) => {
+        const video = videos.find(v => v.id === id);
+        if (video) { video.likes = (video.likes || 0) + 1; saveData(); openPlayer(id); showToast('👍 Лайк!'); }
+    };
+    
+    window.dislikeVideo = (id) => {
+        const video = videos.find(v => v.id === id);
+        if (video) { video.dislikes = (video.dislikes || 0) + 1; saveData(); openPlayer(id); showToast('👎 Дизлайк'); }
+    };
+    
+    window.subscribeTo = (authorId) => {
+        let subs = JSON.parse(localStorage.getItem('look2026_subs') || '[]');
+        if (!subs.includes(authorId)) subs.push(authorId);
+        localStorage.setItem('look2026_subs', JSON.stringify(subs));
+        showToast('✅ Вы подписались!');
+    };
+    
+    window.shareVideo = () => { navigator.clipboard?.writeText(window.location.href); showToast('Ссылка скопирована!'); };
+    
+    // ========== ЗАГРУЗКА ВИДЕО ==========
+    window.uploadVideo = async function() {
+        if (!currentUser) { showToast('Сначала войдите'); showAuthModal(); return; }
+        
+        const title = document.getElementById('uploadTitle').value;
+        const desc = document.getElementById('uploadDesc').value;
+        const category = document.getElementById('uploadCategory').value;
+        const videoFile = document.getElementById('videoFileInput').files[0];
+        const thumbFile = document.getElementById('thumbFileInput').files[0];
+        
+        if (!title || !videoFile) { showToast('Заполните название и выберите видео'); return; }
+        
+        const progressBar = document.getElementById('uploadProgress');
+        const progressFill = document.getElementById('progressFill');
+        progressBar.style.display = 'block';
+        
+        // Конвертируем видео в base64 (для хранения в localStorage)
+        const reader = new FileReader();
+        reader.onprogress = (e) => { if (e.lengthComputable) progressFill.style.width = (e.loaded / e.total) * 100 + '%'; };
+        reader.onload = function(ev) {
+            let thumbUrl = '';
+            if (thumbFile) {
+                const thumbReader = new FileReader();
+                thumbReader.onload = (e) => { thumbUrl = e.target.result; saveVideo(ev.target.result, thumbUrl); };
+                thumbReader.readAsDataURL(thumbFile);
+            } else saveVideo(ev.target.result, '');
+            
+            function saveVideo(videoData, thumbData) {
+                const newVideo = {
+                    id: Date.now().toString(),
+                    title, description: desc, category,
+                    videoUrl: videoData,
+                    thumbnailUrl: thumbData || 'https://via.placeholder.com/320x180?text=NO+THUMB',
+                    authorId: currentUser.id || currentUser.email,
+                    authorName: currentUser.channelName,
+                    authorAvatar: currentUser.channelName?.[0],
+                    views: 0, likes: 0, dislikes: 0,
+                    duration: '00:00',
+                    createdAt: Date.now()
+                };
+                videos.unshift(newVideo);
+                saveData();
+                progressFill.style.width = '100%';
+                setTimeout(() => { showToast('✅ Видео загружено!'); navigate('home'); renderHome(); }, 500);
+            }
+        };
+        reader.readAsDataURL(videoFile);
+    };
+    
+    // ========== АУТЕНТИФИКАЦИЯ ==========
+    function showAuthModal() {
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <h3>LOOK 2026</h3>
+                <input type="text" id="authEmail" placeholder="Email">
+                <input type="password" id="authPassword" placeholder="Пароль (минимум 4 символа)">
+                <input type="text" id="authName" placeholder="Название канала">
+                <button onclick="login()">Войти</button>
+                <button onclick="register()" style="background:#2F2F2F;">Зарегистрироваться</button>
+                <button onclick="this.parentElement.parentElement.remove()">Закрыть</button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    window.login = () => {
+        const email = document.getElementById('authEmail').value;
+        const password = document.getElementById('authPassword').value;
+        const users = JSON.parse(localStorage.getItem('look2026_users') || '{}');
+        
+        if (users[email] && users[email].password === password) {
+            currentUser = users[email];
+            saveUser();
+            document.querySelector('.modal')?.remove();
+            updateUI();
+            showToast(`Добро пожаловать, ${currentUser.channelName}!`);
+        } else showToast('Неверный email или пароль');
+    };
+    
+    window.register = () => {
+        const email = document.getElementById('authEmail').value;
+        const password = document.getElementById('authPassword').value;
+        const channelName = document.getElementById('authName').value;
+        
+        if (!email || !password || !channelName) { showToast('Заполните все поля'); return; }
+        if (password.length < 4) { showToast('Пароль минимум 4 символа'); return; }
+        
+        const users = JSON.parse(localStorage.getItem('look2026_users') || '{}');
+        if (users[email]) { showToast('Пользователь уже существует'); return; }
+        
+        users[email] = { email, password, channelName, id: email, subscribers: [] };
+        localStorage.setItem('look2026_users', JSON.stringify(users));
+        currentUser = users[email];
+        saveUser();
+        document.querySelector('.modal')?.remove();
+        updateUI();
+        showToast(`Регистрация успешна! Добро пожаловать, ${channelName}!`);
+    };
+    
+    window.showUserMenu = () => {
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <h3>${currentUser?.channelName}</h3>
+                <button onclick="navigate('studio')">Мои видео</button>
+                <button onclick="navigate('subscriptions')">Подписки</button>
+                <button onclick="navigate('history')">История</button>
+                <button onclick="navigate('liked')">Понравилось</button>
+                <hr style="margin:12px 0; border-color:#3F3F3F;">
+                <button onclick="logout()" style="background:#3F3F3F;">Выйти</button>
+                <button onclick="this.parentElement.parentElement.remove()">Закрыть</button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    };
+    
+    window.logout = () => {
+        currentUser = null;
+        localStorage.removeItem('look2026_user');
+        document.querySelector('.modal')?.remove();
+        updateUI();
+        navigate('home');
+        showToast('Вы вышли из аккаунта');
+    };
+    
+    // ========== СТРАНИЦЫ ==========
+    function renderStudio() {
+        const myVids = videos.filter(v => v.authorId === currentUser?.id || v.authorEmail === currentUser?.email);
+        document.getElementById('myVideosList').innerHTML = myVids.map(v => `
+            <div style="background:#1F1F1F; padding:16px; border-radius:12px; margin:8px 0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
+                <div><strong>${escapeHtml(v.title)}</strong><br><span style="font-size:12px; color:#AAAAAA;">${v.views} просмотров | ${v.likes} лайков</span></div>
+                <button onclick="deleteVideo('${v.id}')" style="background:#FF0000; padding:8px 16px; border-radius:40px;">Удалить</button>
+            </div>
+        `).join('');
+    }
+    
+    window.deleteVideo = (id) => {
+        videos = videos.filter(v => v.id !== id);
+        saveData();
+        renderStudio();
+        renderHome();
+        showToast('Видео удалено');
+    };
+    
+    function renderSubscriptions() {
+        const subs = JSON.parse(localStorage.getItem('look2026_subs') || '[]');
+        const subsVideos = videos.filter(v => subs.includes(v.authorId));
+        document.getElementById('subsGrid').innerHTML = subsVideos.map(v => `
+            <div class="video-card" onclick="openPlayer('${v.id}')">
+                <div class="thumbnail"><img src="${v.thumbnailUrl}"></div>
+                <div class="video-title">${escapeHtml(v.title)}</div>
+            </div>
+        `).join('');
+    }
+    
+    function renderHistory() {
+        const history = JSON.parse(localStorage.getItem('look2026_history') || '[]');
+        const histVids = history.map(id => videos.find(v => v.id === id)).filter(v => v);
+        document.getElementById('historyGrid').innerHTML = histVids.map(v => `
+            <div class="video-card" onclick="openPlayer('${v.id}')">
+                <div class="thumbnail"><img src="${v.thumbnailUrl}"></div>
+                <div class="video-title">${escapeHtml(v.title)}</div>
+            </div>
+        `).join('');
+    }
+    
+    function renderLiked() {
+        const liked = JSON.parse(localStorage.getItem('look2026_liked') || '[]');
+        const likedVids = videos.filter(v => liked.includes(v.id));
+        document.getElementById('likedGrid').innerHTML = likedVids.map(v => `
+            <div class="video-card" onclick="openPlayer('${v.id}')">
+                <div class="thumbnail"><img src="${v.thumbnailUrl}"></div>
+                <div class="video-title">${escapeHtml(v.title)}</div>
+            </div>
+        `).join('');
+    }
+    
+    window.navigate = (page) => {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById(page + 'Page').classList.add('active');
+        if (page === 'studio') renderStudio();
+        if (page === 'subscriptions') renderSubscriptions();
+        if (page === 'history') renderHistory();
+        if (page === 'liked') renderLiked();
+        if (page === 'home') renderHome();
+    };
+    
+    window.searchVideos = () => { renderHome(); };
+    
+    // ========== ЗАПУСК ==========
+    loadData();
+    renderHome();
+</script>
+</body>
+</html>
